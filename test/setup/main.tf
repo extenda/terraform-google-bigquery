@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2023 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,29 +13,71 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+locals {
+  per_module_services = {
+    root = [
+      "iam.googleapis.com",
+      "cloudkms.googleapis.com",
+      "cloudresourcemanager.googleapis.com",
+      "bigquery.googleapis.com",
+      "bigquerystorage.googleapis.com",
+    ]
+    authorization = [
+      "cloudkms.googleapis.com",
+      "cloudresourcemanager.googleapis.com",
+      "bigquery.googleapis.com",
+      "bigquerystorage.googleapis.com",
+      "bigqueryconnection.googleapis.com",
+      "serviceusage.googleapis.com",
+      "iam.googleapis.com",
+    ]
+    data_warehouse = [
+      "cloudkms.googleapis.com",
+      "cloudresourcemanager.googleapis.com",
+      "bigquery.googleapis.com",
+      "bigquerystorage.googleapis.com",
+      "bigqueryconnection.googleapis.com",
+      "serviceusage.googleapis.com",
+      "iam.googleapis.com",
+    ]
+    scheduled_queries = [
+      "cloudkms.googleapis.com",
+      "cloudresourcemanager.googleapis.com",
+      "bigquery.googleapis.com",
+      "bigquerystorage.googleapis.com",
+      "bigqueryconnection.googleapis.com",
+      "serviceusage.googleapis.com",
+      "iam.googleapis.com",
+    ]
+    udf = [
+      "cloudkms.googleapis.com",
+      "cloudresourcemanager.googleapis.com",
+      "bigquery.googleapis.com",
+      "bigquerystorage.googleapis.com",
+      "bigqueryconnection.googleapis.com",
+      "serviceusage.googleapis.com",
+      "iam.googleapis.com",
+    ]
+  }
+}
 
 module "project" {
   source  = "terraform-google-modules/project-factory/google"
-  version = "~> 10.0"
+  version = "~> 18.0"
 
-  name              = "ci-bigquery"
-  random_project_id = "true"
-  org_id            = var.org_id
-  folder_id         = var.folder_id
-  billing_account   = var.billing_account
+  name                    = "ci-bigquery"
+  random_project_id       = "true"
+  org_id                  = var.org_id
+  folder_id               = var.folder_id
+  billing_account         = var.billing_account
+  default_service_account = "keep"
 
-  activate_apis = [
-    "cloudkms.googleapis.com",
-    "cloudresourcemanager.googleapis.com",
-    "bigquery.googleapis.com",
-    "bigquerystorage.googleapis.com",
-    "serviceusage.googleapis.com"
-  ]
+  activate_apis = tolist(toset(flatten(values(local.per_module_services))))
 }
 
 module "kms_keyring" {
   source  = "terraform-google-modules/kms/google"
-  version = "~> 1.2"
+  version = "~> 3.0"
 
   project_id      = module.project.project_id
   location        = "us"

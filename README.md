@@ -27,7 +27,7 @@ Basic usage of this module is as follows:
 ```hcl
 module "bigquery" {
   source  = "terraform-google-modules/bigquery/google"
-  version = "~> 4.4"
+  version = "~> 10.2"
 
   dataset_id                  = "foo"
   dataset_name                = "foo"
@@ -35,6 +35,7 @@ module "bigquery" {
   project_id                  = "<PROJECT ID>"
   location                    = "US"
   default_table_expiration_ms = 3600000
+  resource_tags               = {"<PROJECT>/<TAG KEY>":"<TAG VALUE>"}
 
   tables = [
   {
@@ -112,8 +113,9 @@ Functional examples are included in the
 The `tables` variable should be provided as a list of object with the following keys:
 ```hcl
 {
-  table_id = "some_id"                        # Unique table id (will be used as ID and Freandly name for the table).
-  schema = "path/to/schema.json"              # Path to the schema json file.
+  table_id = "some_id"                        # Unique table id (will be used as ID for table).
+  table_name = "Friendly Name"                # Optional friendly name for table. If not set, the "table_id" will be used by default.
+  schema = file("path/to/schema.json")        # Schema as JSON string.
   time_partitioning = {                       # Set it to `null` to omit partitioning configuration for the table.
         type                     = "DAY",     # The only type supported is DAY, which will generate one partition per day based on data loading time.
         field                    = null,      # The field used to determine how to create a time-based partition. If time-based partitioning is enabled without this value, the table is partitioned based on the load time. Set it to `null` to omit configuration.
@@ -130,6 +132,7 @@ The `tables` variable should be provided as a list of object with the following 
       },
   clustering = ["fullVisitorId", "visitId"]   # Specifies column names to use for data clustering. Up to four top-level columns are allowed, and should be specified in descending priority order. Partitioning should be configured in order to use clustering.
   expiration_time = 2524604400000             # The time when this table expires, in milliseconds since the epoch. If set to `null`, the table will persist indefinitely.
+  deletion_protection = true                  # Optional. Configures deletion_protection for the table. If unset, module-level deletion_protection setting will be used.
   labels = {                                  # A mapping of labels to assign to the table.
       env      = "dev"
       billable = "true"
@@ -187,18 +190,22 @@ This module provisions a dataset and a list of tables with associated JSON schem
 | dataset\_id | Unique ID for the dataset being provisioned. | `string` | n/a | yes |
 | dataset\_labels | Key value pairs in a map for dataset labels | `map(string)` | `{}` | no |
 | dataset\_name | Friendly name for the dataset being provisioned. | `string` | `null` | no |
+| default\_partition\_expiration\_ms | The default partition expiration for all partitioned tables in the dataset, in MS | `number` | `null` | no |
 | default\_table\_expiration\_ms | TTL of tables using the dataset in MS | `number` | `null` | no |
 | delete\_contents\_on\_destroy | (Optional) If set to true, delete all the tables in the dataset when destroying the resource; otherwise, destroying the resource will fail if tables are present. | `bool` | `null` | no |
-| deletion\_protection | Whether or not to allow Terraform to destroy the instance. Unless this field is set to false in Terraform state, a terraform destroy or terraform apply that would delete the instance will fail | `bool` | `false` | no |
+| deletion\_protection | Whether or not to allow deletion of tables and external tables defined by this module. Can be overriden by table-level deletion\_protection configuration. | `bool` | `false` | no |
 | description | Dataset description. | `string` | `null` | no |
 | encryption\_key | Default encryption key to apply to the dataset. Defaults to null (Google-managed). | `string` | `null` | no |
-| external\_tables | A list of objects which include table\_id, expiration\_time, external\_data\_configuration, and labels. | <pre>list(object({<br>    table_id              = string,<br>    autodetect            = bool,<br>    compression           = string,<br>    ignore_unknown_values = bool,<br>    max_bad_records       = number,<br>    schema                = string,<br>    source_format         = string,<br>    source_uris           = list(string),<br>    csv_options = object({<br>      quote                 = string,<br>      allow_jagged_rows     = bool,<br>      allow_quoted_newlines = bool,<br>      encoding              = string,<br>      field_delimiter       = string,<br>      skip_leading_rows     = number,<br>    }),<br>    google_sheets_options = object({<br>      range             = string,<br>      skip_leading_rows = number,<br>    }),<br>    hive_partitioning_options = object({<br>      mode              = string,<br>      source_uri_prefix = string,<br>    }),<br>    expiration_time = string,<br>    labels          = map(string),<br>  }))</pre> | `[]` | no |
-| location | The regional location for the dataset only US and EU are allowed in module | `string` | `"US"` | no |
-| materialized\_views | A list of objects which includes view\_id, view\_query, clustering, time\_partitioning, range\_partitioning, expiration\_time and labels | <pre>list(object({<br>    view_id             = string,<br>    query               = string,<br>    enable_refresh      = bool,<br>    refresh_interval_ms = string,<br>    clustering          = list(string),<br>    time_partitioning = object({<br>      expiration_ms            = string,<br>      field                    = string,<br>      type                     = string,<br>      require_partition_filter = bool,<br>    }),<br>    range_partitioning = object({<br>      field = string,<br>      range = object({<br>        start    = string,<br>        end      = string,<br>        interval = string,<br>      }),<br>    }),<br>    expiration_time = string,<br>    labels          = map(string),<br>  }))</pre> | `[]` | no |
+| external\_tables | A list of objects which include table\_id, expiration\_time, external\_data\_configuration, and labels. | <pre>list(object({<br>    table_id              = string,<br>    description           = optional(string),<br>    autodetect            = bool,<br>    compression           = string,<br>    ignore_unknown_values = bool,<br>    max_bad_records       = number,<br>    schema                = string,<br>    source_format         = string,<br>    source_uris           = list(string),<br>    csv_options = object({<br>      quote                 = string,<br>      allow_jagged_rows     = bool,<br>      allow_quoted_newlines = bool,<br>      encoding              = string,<br>      field_delimiter       = string,<br>      skip_leading_rows     = number,<br>    }),<br>    google_sheets_options = object({<br>      range             = string,<br>      skip_leading_rows = number,<br>    }),<br>    hive_partitioning_options = object({<br>      mode              = string,<br>      source_uri_prefix = string,<br>    }),<br>    expiration_time     = optional(string, null),<br>    max_staleness       = optional(string),<br>    deletion_protection = optional(bool),<br>    labels              = optional(map(string), {}),<br>  }))</pre> | `[]` | no |
+| location | The location of the dataset. For multi-region, US or EU can be provided. | `string` | `"US"` | no |
+| materialized\_views | A list of objects which includes view\_id, view\_query, clustering, time\_partitioning, range\_partitioning, expiration\_time and labels | <pre>list(object({<br>    view_id             = string,<br>    description         = optional(string),<br>    query               = string,<br>    enable_refresh      = bool,<br>    refresh_interval_ms = string,<br>    clustering          = optional(list(string), []),<br>    time_partitioning = optional(object({<br>      expiration_ms            = string,<br>      field                    = string,<br>      type                     = string,<br>      require_partition_filter = bool,<br>    }), null),<br>    range_partitioning = optional(object({<br>      field = string,<br>      range = object({<br>        start    = string,<br>        end      = string,<br>        interval = string,<br>      }),<br>    }), null),<br>    expiration_time = optional(string, null),<br>    max_staleness   = optional(string),<br>    labels          = optional(map(string), {}),<br>  }))</pre> | `[]` | no |
+| max\_time\_travel\_hours | Defines the time travel window in hours | `number` | `null` | no |
 | project\_id | Project where the dataset and table are created | `string` | n/a | yes |
-| routines | A list of objects which include routine\_id, routine\_type, routine\_language, definition\_body, return\_type, routine\_description and arguments. | <pre>list(object({<br>    routine_id      = string,<br>    routine_type    = string,<br>    language        = string,<br>    definition_body = string,<br>    return_type     = string,<br>    description     = string,<br>    arguments = list(object({<br>      name          = string,<br>      data_type     = string,<br>      argument_kind = string,<br>      mode          = string,<br>    })),<br>  }))</pre> | `[]` | no |
-| tables | A list of objects which include table\_id, schema, clustering, time\_partitioning, range\_partitioning, expiration\_time and labels. | <pre>list(object({<br>    table_id   = string,<br>    schema     = string,<br>    clustering = list(string),<br>    time_partitioning = object({<br>      expiration_ms            = string,<br>      field                    = string,<br>      type                     = string,<br>      require_partition_filter = bool,<br>    }),<br>    range_partitioning = object({<br>      field = string,<br>      range = object({<br>        start    = string,<br>        end      = string,<br>        interval = string,<br>      }),<br>    }),<br>    expiration_time = string,<br>    labels          = map(string),<br>  }))</pre> | `[]` | no |
-| views | A list of objects which include view\_id and view query | <pre>list(object({<br>    view_id        = string,<br>    query          = string,<br>    use_legacy_sql = bool,<br>    labels         = map(string),<br>  }))</pre> | `[]` | no |
+| resource\_tags | A map of resource tags to add to the dataset | `map(string)` | `{}` | no |
+| routines | A list of objects which include routine\_id, routine\_type, routine\_language, definition\_body, return\_type, routine\_description and arguments. | <pre>list(object({<br>    routine_id      = string,<br>    routine_type    = string,<br>    language        = string,<br>    definition_body = string,<br>    return_type     = string,<br>    description     = string,<br>    arguments = optional(list(object({<br>      name          = string,<br>      data_type     = string,<br>      argument_kind = string,<br>      mode          = string,<br>    })), []),<br>  }))</pre> | `[]` | no |
+| storage\_billing\_model | Specifies the storage billing model for the dataset. Set this flag value to LOGICAL to use logical bytes for storage billing, or to PHYSICAL to use physical bytes instead. LOGICAL is the default if this flag isn't specified. | `string` | `null` | no |
+| tables | A list of objects which include table\_id, table\_name, schema, clustering, time\_partitioning, range\_partitioning, expiration\_time and labels. | <pre>list(object({<br>    table_id                 = string,<br>    description              = optional(string),<br>    table_name               = optional(string),<br>    schema                   = string,<br>    clustering               = optional(list(string), []),<br>    require_partition_filter = optional(bool),<br>    time_partitioning = optional(object({<br>      expiration_ms = string,<br>      field         = string,<br>      type          = string,<br>    }), null),<br>    range_partitioning = optional(object({<br>      field = string,<br>      range = object({<br>        start    = string,<br>        end      = string,<br>        interval = string,<br>      }),<br>    }), null),<br>    expiration_time     = optional(string, null),<br>    deletion_protection = optional(bool),<br>    labels              = optional(map(string), {}),<br>  }))</pre> | `[]` | no |
+| views | A list of objects which include view\_id and view query | <pre>list(object({<br>    view_id        = string,<br>    description    = optional(string),<br>    query          = string,<br>    use_legacy_sql = bool,<br>    labels         = optional(map(string), {}),<br>  }))</pre> | `[]` | no |
 
 ## Outputs
 
@@ -208,10 +215,12 @@ This module provisions a dataset and a list of tables with associated JSON schem
 | bigquery\_external\_tables | Map of BigQuery external table resources being provisioned. |
 | bigquery\_tables | Map of bigquery table resources being provisioned. |
 | bigquery\_views | Map of bigquery view resources being provisioned. |
+| env\_vars | Exported environment variables |
 | external\_table\_ids | Unique IDs for any external tables being provisioned |
 | external\_table\_names | Friendly names for any external tables being provisioned |
 | project | Project where the dataset and tables are created |
 | routine\_ids | Unique IDs for any routine being provisioned |
+| table\_fqns | Fully qualified names for the table with format projects/{{project}}/datasets/{{dataset}}/tables/{{name}} |
 | table\_ids | Unique id for the table being provisioned |
 | table\_names | Friendly name for the table being provisioned |
 | view\_ids | Unique id for the view being provisioned |

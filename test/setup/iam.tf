@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2023 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,79 @@
  */
 
 locals {
-  int_required_roles = [
-    "roles/bigquery.admin",
-    "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  ]
+  per_module_roles = {
+    root = [
+      "roles/bigquery.admin",
+      "roles/storage.admin",
+      "roles/cloudkms.cryptoKeyEncrypterDecrypter",
+    ]
+    authorization = [
+      "roles/bigquery.admin",
+      "roles/aiplatform.admin",
+      "roles/cloudfunctions.admin",
+      "roles/dataform.admin",
+      "roles/datalineage.viewer",
+      "roles/iam.serviceAccountAdmin",
+      "roles/iam.serviceAccountTokenCreator",
+      "roles/iam.serviceAccountUser",
+      "roles/logging.configWriter",
+      "roles/resourcemanager.projectIamAdmin",
+      "roles/run.invoker",
+      "roles/serviceusage.serviceUsageAdmin",
+      "roles/storage.admin",
+      "roles/workflows.admin"
+    ]
+    data_warehouse = [
+      "roles/bigquery.admin",
+      "roles/aiplatform.admin",
+      "roles/cloudfunctions.admin",
+      "roles/dataform.admin",
+      "roles/datalineage.viewer",
+      "roles/iam.serviceAccountAdmin",
+      "roles/iam.serviceAccountTokenCreator",
+      "roles/iam.serviceAccountUser",
+      "roles/logging.configWriter",
+      "roles/resourcemanager.projectIamAdmin",
+      "roles/run.invoker",
+      "roles/serviceusage.serviceUsageAdmin",
+      "roles/storage.admin",
+      "roles/workflows.admin"
+    ]
+    scheduled_queries = [
+      "roles/bigquery.admin",
+      "roles/aiplatform.admin",
+      "roles/cloudfunctions.admin",
+      "roles/dataform.admin",
+      "roles/datalineage.viewer",
+      "roles/iam.serviceAccountAdmin",
+      "roles/iam.serviceAccountTokenCreator",
+      "roles/iam.serviceAccountUser",
+      "roles/logging.configWriter",
+      "roles/resourcemanager.projectIamAdmin",
+      "roles/run.invoker",
+      "roles/serviceusage.serviceUsageAdmin",
+      "roles/storage.admin",
+      "roles/workflows.admin"
+    ]
+    udf = [
+      "roles/bigquery.admin",
+      "roles/aiplatform.admin",
+      "roles/cloudfunctions.admin",
+      "roles/dataform.admin",
+      "roles/datalineage.viewer",
+      "roles/iam.serviceAccountAdmin",
+      "roles/iam.serviceAccountTokenCreator",
+      "roles/iam.serviceAccountUser",
+      "roles/logging.configWriter",
+      "roles/resourcemanager.projectIamAdmin",
+      "roles/run.invoker",
+      "roles/serviceusage.serviceUsageAdmin",
+      "roles/storage.admin",
+      "roles/workflows.admin"
+    ]
+  }
+
+  int_required_roles = tolist(toset(flatten(values(local.per_module_roles))))
 }
 
 resource "google_service_account" "int_test" {

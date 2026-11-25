@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2023 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ variable "description" {
 }
 
 variable "location" {
-  description = "The regional location for the dataset only US and EU are allowed in module"
+  description = "The location of the dataset. For multi-region, US or EU can be provided."
   type        = string
   default     = "US"
 }
@@ -44,7 +44,7 @@ variable "delete_contents_on_destroy" {
 }
 
 variable "deletion_protection" {
-  description = "Whether or not to allow Terraform to destroy the instance. Unless this field is set to false in Terraform state, a terraform destroy or terraform apply that would delete the instance will fail"
+  description = "Whether or not to allow deletion of tables and external tables defined by this module. Can be overriden by table-level deletion_protection configuration."
   type        = bool
   default     = false
 }
@@ -53,6 +53,29 @@ variable "default_table_expiration_ms" {
   description = "TTL of tables using the dataset in MS"
   type        = number
   default     = null
+}
+
+variable "default_partition_expiration_ms" {
+  description = "The default partition expiration for all partitioned tables in the dataset, in MS"
+  type        = number
+  default     = null
+}
+
+variable "max_time_travel_hours" {
+  description = "Defines the time travel window in hours"
+  type        = number
+  default     = null
+}
+
+variable "storage_billing_model" {
+  description = "Specifies the storage billing model for the dataset. Set this flag value to LOGICAL to use logical bytes for storage billing, or to PHYSICAL to use physical bytes instead. LOGICAL is the default if this flag isn't specified."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.storage_billing_model == null || var.storage_billing_model == "LOGICAL" || var.storage_billing_model == "PHYSICAL"
+    error_message = "storage_billing_model must be null, \"LOGICAL\" or \"PHYSICAL\"."
+  }
 }
 
 variable "project_id" {
@@ -68,6 +91,12 @@ variable "encryption_key" {
 
 variable "dataset_labels" {
   description = "Key value pairs in a map for dataset labels"
+  type        = map(string)
+  default     = {}
+}
+
+variable "resource_tags" {
+  description = "A map of resource tags to add to the dataset"
   type        = map(string)
   default     = {}
 }
@@ -89,28 +118,31 @@ variable "access" {
 }
 
 variable "tables" {
-  description = "A list of objects which include table_id, schema, clustering, time_partitioning, range_partitioning, expiration_time and labels."
+  description = "A list of objects which include table_id, table_name, schema, clustering, time_partitioning, range_partitioning, expiration_time and labels."
   default     = []
   type = list(object({
-    table_id   = string,
-    schema     = string,
-    clustering = list(string),
-    time_partitioning = object({
-      expiration_ms            = string,
-      field                    = string,
-      type                     = string,
-      require_partition_filter = bool,
-    }),
-    range_partitioning = object({
+    table_id                 = string,
+    description              = optional(string),
+    table_name               = optional(string),
+    schema                   = string,
+    clustering               = optional(list(string), []),
+    require_partition_filter = optional(bool),
+    time_partitioning = optional(object({
+      expiration_ms = string,
+      field         = string,
+      type          = string,
+    }), null),
+    range_partitioning = optional(object({
       field = string,
       range = object({
         start    = string,
         end      = string,
         interval = string,
       }),
-    }),
-    expiration_time = string,
-    labels          = map(string),
+    }), null),
+    expiration_time     = optional(string, null),
+    deletion_protection = optional(bool),
+    labels              = optional(map(string), {}),
   }))
 }
 
@@ -119,9 +151,10 @@ variable "views" {
   default     = []
   type = list(object({
     view_id        = string,
+    description    = optional(string),
     query          = string,
     use_legacy_sql = bool,
-    labels         = map(string),
+    labels         = optional(map(string), {}),
   }))
 }
 
@@ -130,26 +163,28 @@ variable "materialized_views" {
   default     = []
   type = list(object({
     view_id             = string,
+    description         = optional(string),
     query               = string,
     enable_refresh      = bool,
     refresh_interval_ms = string,
-    clustering          = list(string),
-    time_partitioning = object({
+    clustering          = optional(list(string), []),
+    time_partitioning = optional(object({
       expiration_ms            = string,
       field                    = string,
       type                     = string,
       require_partition_filter = bool,
-    }),
-    range_partitioning = object({
+    }), null),
+    range_partitioning = optional(object({
       field = string,
       range = object({
         start    = string,
         end      = string,
         interval = string,
       }),
-    }),
-    expiration_time = string,
-    labels          = map(string),
+    }), null),
+    expiration_time = optional(string, null),
+    max_staleness   = optional(string),
+    labels          = optional(map(string), {}),
   }))
 }
 
@@ -158,6 +193,7 @@ variable "external_tables" {
   default     = []
   type = list(object({
     table_id              = string,
+    description           = optional(string),
     autodetect            = bool,
     compression           = string,
     ignore_unknown_values = bool,
@@ -181,8 +217,10 @@ variable "external_tables" {
       mode              = string,
       source_uri_prefix = string,
     }),
-    expiration_time = string,
-    labels          = map(string),
+    expiration_time     = optional(string, null),
+    max_staleness       = optional(string),
+    deletion_protection = optional(bool),
+    labels              = optional(map(string), {}),
   }))
 }
 
@@ -197,11 +235,11 @@ variable "routines" {
     definition_body = string,
     return_type     = string,
     description     = string,
-    arguments = list(object({
+    arguments = optional(list(object({
       name          = string,
       data_type     = string,
       argument_kind = string,
       mode          = string,
-    })),
+    })), []),
   }))
 }

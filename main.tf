@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2023 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,14 +29,18 @@ locals {
 }
 
 resource "google_bigquery_dataset" "main" {
-  dataset_id                  = var.dataset_id
-  friendly_name               = var.dataset_name
-  description                 = var.description
-  location                    = var.location
-  delete_contents_on_destroy  = var.delete_contents_on_destroy
-  default_table_expiration_ms = var.default_table_expiration_ms
-  project                     = var.project_id
-  labels                      = var.dataset_labels
+  dataset_id                      = var.dataset_id
+  friendly_name                   = var.dataset_name
+  description                     = var.description
+  location                        = var.location
+  delete_contents_on_destroy      = var.delete_contents_on_destroy
+  default_table_expiration_ms     = var.default_table_expiration_ms
+  max_time_travel_hours           = var.max_time_travel_hours
+  storage_billing_model           = var.storage_billing_model
+  project                         = var.project_id
+  labels                          = var.dataset_labels
+  resource_tags                   = var.resource_tags
+  default_partition_expiration_ms = var.default_partition_expiration_ms
 
   dynamic "default_encryption_configuration" {
     for_each = var.encryption_key == null ? [] : [var.encryption_key]
@@ -53,33 +57,36 @@ resource "google_bigquery_dataset" "main" {
       # Thus, do the conversion between IAM to primitive role here to prevent the diff.
       role = lookup(local.iam_to_primitive, access.value.role, access.value.role)
 
-      domain         = lookup(access.value, "domain", null)
-      group_by_email = lookup(access.value, "group_by_email", null)
-      user_by_email  = lookup(access.value, "user_by_email", null)
-      special_group  = lookup(access.value, "special_group", null)
+      # Additionally, using null as a default value would lead to a permanant diff
+      # See https://github.com/hashicorp/terraform-provider-google/issues/4085#issuecomment-516923872
+      domain         = lookup(access.value, "domain", "")
+      group_by_email = lookup(access.value, "group_by_email", "")
+      user_by_email  = lookup(access.value, "user_by_email", "")
+      special_group  = lookup(access.value, "special_group", "")
     }
   }
 }
 
 resource "google_bigquery_table" "main" {
-  for_each            = local.tables
-  dataset_id          = google_bigquery_dataset.main.dataset_id
-  friendly_name       = each.key
-  table_id            = each.key
-  labels              = each.value["labels"]
-  schema              = each.value["schema"]
-  clustering          = each.value["clustering"]
-  expiration_time     = each.value["expiration_time"]
-  project             = var.project_id
-  deletion_protection = var.deletion_protection
+  for_each                 = local.tables
+  dataset_id               = google_bigquery_dataset.main.dataset_id
+  friendly_name            = each.value["table_name"] != null ? each.value["table_name"] : each.key
+  table_id                 = each.key
+  description              = each.value["description"]
+  labels                   = each.value["labels"]
+  schema                   = each.value["schema"]
+  clustering               = each.value["clustering"]
+  expiration_time          = each.value["expiration_time"] != null ? each.value["expiration_time"] : 0
+  project                  = var.project_id
+  deletion_protection      = coalesce(each.value["deletion_protection"], var.deletion_protection)
+  require_partition_filter = each.value["require_partition_filter"]
 
   dynamic "time_partitioning" {
     for_each = each.value["time_partitioning"] != null ? [each.value["time_partitioning"]] : []
     content {
-      type                     = time_partitioning.value["type"]
-      expiration_ms            = time_partitioning.value["expiration_ms"]
-      field                    = time_partitioning.value["field"]
-      require_partition_filter = time_partitioning.value["require_partition_filter"]
+      type          = time_partitioning.value["type"]
+      expiration_ms = time_partitioning.value["expiration_ms"] != null ? time_partitioning.value["expiration_ms"] : 0
+      field         = time_partitioning.value["field"]
     }
   }
 
@@ -107,6 +114,7 @@ resource "google_bigquery_table" "view" {
   dataset_id          = google_bigquery_dataset.main.dataset_id
   friendly_name       = each.key
   table_id            = each.key
+  description         = each.value["description"]
   labels              = each.value["labels"]
   project             = var.project_id
   deletion_protection = false
@@ -128,9 +136,11 @@ resource "google_bigquery_table" "materialized_view" {
   dataset_id          = google_bigquery_dataset.main.dataset_id
   friendly_name       = each.key
   table_id            = each.key
+  description         = each.value["description"]
   labels              = each.value["labels"]
   clustering          = each.value["clustering"]
-  expiration_time     = each.value["expiration_time"]
+  expiration_time     = each.value["expiration_time"] != null ? each.value["expiration_time"] : 0
+  max_staleness       = each.value["max_staleness"]
   project             = var.project_id
   deletion_protection = false
 
@@ -138,7 +148,7 @@ resource "google_bigquery_table" "materialized_view" {
     for_each = each.value["time_partitioning"] != null ? [each.value["time_partitioning"]] : []
     content {
       type                     = time_partitioning.value["type"]
-      expiration_ms            = time_partitioning.value["expiration_ms"]
+      expiration_ms            = time_partitioning.value["expiration_ms"] != null ? time_partitioning.value["expiration_ms"] : 0
       field                    = time_partitioning.value["field"]
       require_partition_filter = time_partitioning.value["require_partition_filter"]
     }
@@ -174,10 +184,12 @@ resource "google_bigquery_table" "external_table" {
   dataset_id          = google_bigquery_dataset.main.dataset_id
   friendly_name       = each.key
   table_id            = each.key
+  description         = each.value["description"]
   labels              = each.value["labels"]
-  expiration_time     = each.value["expiration_time"]
+  expiration_time     = each.value["expiration_time"] != null ? each.value["expiration_time"] : 0
+  max_staleness       = each.value["max_staleness"]
   project             = var.project_id
-  deletion_protection = var.deletion_protection
+  deletion_protection = coalesce(each.value["deletion_protection"], var.deletion_protection)
 
   external_data_configuration {
     autodetect            = each.value["autodetect"]

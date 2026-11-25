@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2023 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,11 +20,6 @@ variable "delete_contents_on_destroy" {
   default     = null
 }
 
-variable "default_table_expiration_ms" {
-  description = "Default TTL of tables using the dataset in MS."
-  default     = null
-}
-
 variable "table_project_id" {
   description = "Project where the dataset and table are created."
 }
@@ -42,10 +37,9 @@ variable "tables" {
     schema     = string,
     clustering = list(string),
     time_partitioning = object({
-      expiration_ms            = string,
-      field                    = string,
-      type                     = string,
-      require_partition_filter = bool,
+      expiration_ms = string,
+      field         = string,
+      type          = string,
     }),
     range_partitioning = object({
       field = string,

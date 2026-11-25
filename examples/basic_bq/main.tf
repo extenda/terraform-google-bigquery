@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2023 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,9 @@
  */
 
 module "bigquery" {
-  source                     = "../.."
+  source  = "terraform-google-modules/bigquery/google"
+  version = "~> 9.0"
+
   dataset_id                 = "foo"
   dataset_name               = "foo"
   description                = "some description"

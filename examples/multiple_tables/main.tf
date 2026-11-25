@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2023 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,9 @@
  */
 
 module "bigquery" {
-  source                      = "../.."
+  source  = "terraform-google-modules/bigquery/google"
+  version = "~> 9.0"
+
   dataset_id                  = "foo"
   dataset_name                = "foo"
   description                 = "some description"
@@ -150,14 +152,16 @@ module "bigquery" {
 }
 
 module "add_udfs" {
-  source = "../../modules/udf"
+  source  = "terraform-google-modules/bigquery/google//modules/udf"
+  version = "~> 9.0"
 
   dataset_id = module.bigquery.bigquery_dataset.dataset_id
   project_id = module.bigquery.bigquery_dataset.project
 }
 
 module "auth_dataset" {
-  source                      = "../.."
+  source                      = "terraform-google-modules/bigquery/google"
+  version                     = "~> 9.0"
   dataset_id                  = "auth_dataset"
   dataset_name                = "auth_dataset"
   description                 = "some description"
@@ -168,18 +172,89 @@ module "auth_dataset" {
   access                      = []
 }
 
-module "add_authorization" {
-  source = "../../modules/authorization"
+resource "google_bigquery_table" "auth_ds_table" {
+  deletion_protection = false
+  dataset_id          = module.auth_dataset.bigquery_dataset.dataset_id
+  project             = module.auth_dataset.bigquery_dataset.project
+  table_id            = "auth_db_table"
 
-  dataset_id       = module.bigquery.bigquery_dataset.dataset_id
-  project_id       = module.bigquery.bigquery_dataset.project
-  authorized_views = []
+  view {
+    query          = "SELECT 1 as col1 from (select SESSION_USER())"
+    use_legacy_sql = false
+  }
+}
+
+resource "google_bigquery_routine" "auth_ds_routine1" {
+  dataset_id      = module.auth_dataset.bigquery_dataset.dataset_id
+  project         = module.auth_dataset.bigquery_dataset.project
+  routine_id      = "auth_ds_routine1"
+  routine_type    = "TABLE_VALUED_FUNCTION"
+  language        = "SQL"
+  definition_body = <<-EOS
+    SELECT 1 + value AS value
+  EOS
+  arguments {
+    name          = "value"
+    argument_kind = "FIXED_TYPE"
+    data_type     = jsonencode({ "typeKind" = "INT64" })
+  }
+  return_table_type = jsonencode({ "columns" = [
+    { "name" = "value", "type" = { "typeKind" = "INT64" } },
+  ] })
+}
+
+resource "google_bigquery_routine" "auth_ds_routine2" {
+  dataset_id      = module.auth_dataset.bigquery_dataset.dataset_id
+  project         = module.auth_dataset.bigquery_dataset.project
+  routine_id      = "auth_ds_routine2"
+  routine_type    = "TABLE_VALUED_FUNCTION"
+  language        = "SQL"
+  definition_body = <<-EOS
+    SELECT 2 + value AS value
+  EOS
+  arguments {
+    name          = "value"
+    argument_kind = "FIXED_TYPE"
+    data_type     = jsonencode({ "typeKind" = "INT64" })
+  }
+  return_table_type = jsonencode({ "columns" = [
+    { "name" = "value", "type" = { "typeKind" = "INT64" } },
+  ] })
+}
+
+module "add_authorization" {
+  source  = "terraform-google-modules/bigquery/google//modules/authorization"
+  version = "~> 9.0"
+
+  dataset_id = module.bigquery.bigquery_dataset.dataset_id
+  project_id = module.bigquery.bigquery_dataset.project
+  authorized_views = [
+    {
+      project_id = module.auth_dataset.bigquery_dataset.project
+      dataset_id = module.auth_dataset.bigquery_dataset.dataset_id
+      table_id   = google_bigquery_table.auth_ds_table.table_id
+    },
+  ]
   authorized_datasets = [
     {
       dataset_id = module.auth_dataset.bigquery_dataset.dataset_id
       project_id = module.auth_dataset.bigquery_dataset.project
     },
   ]
+
+  authorized_routines = [
+    {
+      dataset_id = google_bigquery_routine.auth_ds_routine1.dataset_id
+      project_id = google_bigquery_routine.auth_ds_routine1.project
+      routine_id = google_bigquery_routine.auth_ds_routine1.routine_id
+    },
+    {
+      dataset_id = google_bigquery_routine.auth_ds_routine2.dataset_id
+      project_id = google_bigquery_routine.auth_ds_routine2.project
+      routine_id = google_bigquery_routine.auth_ds_routine2.routine_id
+    },
+  ]
+
   depends_on = [
     module.auth_dataset
   ]

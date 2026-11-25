@@ -1,5 +1,5 @@
 /**
- * Copyright 2022 Google LLC
+ * Copyright 2023 Google LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,9 @@
 
 
 module "bigquery_tables" {
-  source                     = "../.."
+  source  = "terraform-google-modules/bigquery/google"
+  version = "~> 9.0"
+
   dataset_id                 = "foo"
   dataset_name               = "foo"
   description                = "some description"
@@ -33,7 +35,9 @@ module "bigquery_tables" {
 }
 
 module "bigquery_views_without_pii" {
-  source                     = "../.."
+  source  = "terraform-google-modules/bigquery/google"
+  version = "~> 9.0"
+
   dataset_id                 = "${module.bigquery_tables.bigquery_dataset.dataset_id}_view_without_pii" # this creates a dependency so that we have the tables first
   dataset_name               = "foo view"
   description                = "some description"
@@ -55,7 +59,9 @@ module "bigquery_views_without_pii" {
 # the view wants first the tables are created, while the view access control needs the views
 # so we create the authorized views after creating tables and views.
 module "authorization" {
-  source     = "../../modules/authorization"
+  source  = "terraform-google-modules/bigquery/google//modules/authorization"
+  version = "~> 9.0"
+
   project_id = var.table_project_id
   dataset_id = module.bigquery_tables.bigquery_dataset.dataset_id
 
